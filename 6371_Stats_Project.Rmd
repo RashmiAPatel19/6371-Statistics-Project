@@ -1,0 +1,188 @@
+---
+title: "6371 Stats Project"
+author: "Rashmi Patel"
+date: "4/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(corrplot)
+library(mlbench)
+library(randomForest)
+library(DataExplorer)
+```
+# Fetching and reading the csv file
+```{r}
+
+house=read.csv("https://raw.githubusercontent.com/RashmiAPatel19/6371-Statistics-Project/main/train.csv",header=TRUE)
+head(house)
+dim(house)
+colnames(house)
+
+```
+# Plotting the graph for each variable
+```{r}
+
+plot_histogram(house)
+ 
+```
+# Checking for the unique values in categorical variables
+```{r}
+unique(house$Utilities)
+unique(house$MSZoning)
+unique(house$Street)
+unique(house$Alley)
+unique(house$LotShape)
+unique(house$LandContour)
+unique(house$LotConfig)
+unique(house$LandSlope)
+unique(house$Neighborhood)
+unique(house$Condition1)
+unique(house$Condition2)
+unique(house$BldgType)
+unique(house$HouseStyle)
+unique(house$RoofStyle)
+unique(house$RoofMatl)
+unique(house$Exterior1st)
+unique(house$Exterior2nd)
+unique(house$MasVnrType)
+unique(house$MasVnrArea)
+unique(house$ExterQual)
+unique(house$ExterCond)
+unique(house$Foundation)
+unique(house$BsmtQual)
+unique(house$BsmtCond)
+unique(house$BsmtExposure)
+unique(house$BsmtFinType1)
+unique(house$BsmtFinType2)
+unique(house$Heating)
+unique(house$HeatingQC)
+unique(house$CentralAir)
+unique(house$Electrical)
+unique(house$KitchenQual)
+unique(house$Functional)
+unique(house$FireplaceQu)
+unique(house$GarageType)
+unique(house$GarageFinish)
+unique(house$GarageQual)
+unique(house$GarageCond)
+unique(house$PavedDrive)
+unique(house$PoolQC)
+unique(house$Fence)
+unique(house$MiscFeature)
+unique(house$SaleType)
+unique(house$SaleCondition)
+
+```
+# Converting the categorical variables into integer
+```{r}
+
+var_facs <- c("SaleCondition","SaleType","MiscFeature","Fence","PoolQC","PavedDrive","GarageCond","GarageQual","GarageFinish","GarageType","FireplaceQu","Functional","KitchenQual","Electrical","CentralAir","HeatingQC","Heating","BsmtFinType2","BsmtFinType1","BsmtExposure","BsmtCond","BsmtQual","Foundation","ExterCond","ExterQual","MasVnrArea","MasVnrType","Exterior2nd","Exterior1st","RoofMatl","RoofStyle","HouseStyle","BldgType","Condition2","Condition1","Neighborhood","LandSlope","LotConfig","Utilities","LandContour","LotShape","Alley","Street","MSZoning")
+house[,var_facs] <- lapply(house[,var_facs] , factor, ordered = FALSE)
+
+house$Utilities=as.integer(house$Utilities)
+house$MSZoning=as.integer(house$MSZoning)
+house$Street=as.integer(house$Street)
+house$Alley=as.integer(house$Alley)
+house$LotShape=as.integer(house$LotFrontage)
+house$LandContour=as.integer(house$LandContour)
+house$LotConfig=as.integer(house$LotConfig)
+house$LandSlope=as.integer(house$LandSlope)
+house$Neighborhood=as.integer(house$Neighborhood)
+house$Condition1=as.integer(house$Condition1)
+house$Condition2=as.integer(house$Condition2)
+house$BldgType=as.integer(house$BldgType)
+house$HouseStyle=as.integer(house$HouseStyle)
+house$RoofStyle=as.integer(house$RoofStyle)
+house$RoofMatl=as.integer(house$RoofMatl)
+house$Exterior1st=as.integer(house$Exterior1st)
+house$Exterior2nd=as.integer(house$Exterior2nd)
+house$MasVnrType=as.integer(house$MasVnrType)
+house$MasVnrArea=as.integer(house$MasVnrArea)
+house$ExterQual=as.integer(house$ExterQual)
+house$ExterCond=as.integer(house$ExterCond)
+house$Foundation=as.integer(house$Foundation)
+house$BsmtQual=as.integer(house$BsmtQual)
+house$BsmtCond=as.integer(house$BsmtCond)
+house$BsmtExposure=as.integer(house$BsmtExposure)
+house$BsmtFinType1=as.integer(house$BsmtFinType1)
+house$BsmtFinType2=as.integer(house$BsmtFinType2)
+house$Heating=as.integer(house$Heating)
+house$HeatingQC=as.integer(house$HeatingQC)
+house$CentralAir=as.integer(house$CentralAir)
+house$Electrical=as.integer(house$Electrical)
+house$KitchenQual=as.integer(house$KitchenQual)
+house$Functional=as.integer(house$Functional)
+house$FireplaceQu=as.integer(house$FireplaceQu)
+house$GarageType=as.integer(house$GarageType)
+house$GarageFinish=as.integer(house$GarageFinish)
+house$GarageQual=as.integer(house$GarageQual)
+house$GarageCond=as.integer(house$GarageCond)
+house$PavedDrive=as.integer(house$PavedDrive)
+house$PoolQC=as.integer(house$PoolQC)
+house$Fence=as.integer(house$Fence)
+house$MiscFeature=as.integer(house$MiscFeature)
+house$SaleType=as.integer(house$SaleType)
+house$SaleCondition=as.integer(house$SaleCondition)
+
+
+str(house)
+```
+# Checking for NA 
+```{r}
+dim(house)
+sum(is.na(house))
+house_Na=na.omit(house)
+dim(house_Na)
+```
+```{r}
+correlationMatrix <- cor(house[,2:80])
+# summarize the correlation matrix
+print(correlationMatrix)
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.5)
+# print indexes of highly correlated attributes
+print(highlyCorrelated)
+
+fit=glm(SalePrice~.,data=house)
+summary(fit)
+
+```
+
+```{r}
+
+house_analysis1=house%>%select(Neighborhood,GrLivArea,SalePrice)%>%filter(Neighborhood=="NAmes"|Neighborhood=="Edwards"|Neighborhood=="BrkSide")
+head(house_analysis1)
+unique(house_analysis1$Neighborhood)
+dim(house_analysis1)
+str(house_analysis1)
+
+house_analysis1$GrLivArea=log(house_analysis1$GrLivArea)
+house_analysis1$SalePrice=log(house_analysis1$SalePrice)
+ 
+ggplot(house_analysis1,aes(x=Neighborhood,fill=Neighborhood))+geom_bar()
+
+numeric_neighbor=as.numeric(as.factor(house_analysis1$Neighborhood))
+
+ggplot(house_analysis1,aes(y=SalePrice,x=GrLivArea))+geom_point()+
+  geom_smooth(method="lm")
+
+house_analysis1=house_analysis1[-c(131,339,190,169,372),]
+dim(house_analysis1)
+
+fit=lm(SalePrice~.,data=house_analysis1)
+ summary(fit)
+plot(fit)
+anova(fit)
+
+plot_histogram(house_analysis1$SalePrice)
+plot_histogram(house_analysis1$GrLivArea)
+
+summary(house_analysis1$GrLivArea)
+summary(house_analysis1$SalePrice)
+
+cor(house_analysis1)
+```
