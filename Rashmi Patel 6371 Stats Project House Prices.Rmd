@@ -1,0 +1,732 @@
+---
+title: "6371 Stats Project on House Prices"
+author: "Rashmi Patel"
+date: "4/11/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+# Load the libraries
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(Ecdat)
+library(boot)
+library(DAAG)
+library(Metrics)
+library(gplots)
+library(graphics)
+library(corrplot)
+library(olsrr)
+library(ggpubr)
+library(rstatix)
+library(tidyverse)
+library(visdat)
+library(GGally)
+library(usmap)
+library(mice)
+library(VIM)
+library(plotly)
+library(caret)
+library(e1071)
+library(class)
+library(mapproj)
+library(stringr)
+library(table1)
+library('ggplot2')
+library('ggthemes') 
+library('scales')
+library('dplyr') 
+library('mice')
+library('randomForest') 
+library('data.table')
+library('gridExtra')
+library('corrplot') 
+library('GGally')
+library('e1071')
+library(MASS)
+library(data.table)
+library(ggplot2)
+library(randomForest)
+library(dplyr)
+library(corrplot)
+library(knitr)
+library(kableExtra)
+library(caret)
+library(olsrr)
+library(DataExplorer)
+library(leaps)
+
+```
+# Read the train.csv dataset from GitHub
+
+## Data Description
+
+The train.csv dataset fetched from GitHub contains 80 variables and 1460 entries related to the house prices. 
+
+```{r}
+house_train=read.csv("https://raw.githubusercontent.com/RashmiAPatel19/6371-Statistics-Project/main/train.csv",header=TRUE)
+head(house_train)
+dim(house_train)
+colnames(house_train)
+
+
+```
+# Analysis Question 1: Assume that Century 21 Ames (a real estate company) in Ames Iowa has commissioned you to answer a very important question with respect to their business.  Century 21 Ames only sells houses in the NAmes, Edwards and BrkSide neighborhoods and would like to simply get an estimate of how the SalePrice of the house is related to the square footage of the living area of the house (GrLIvArea) and if the SalesPrice (and its relationship to square footage) depends on which neighborhood the house is located in. Build and fit a model that will answer this question, keeping in mind that realtors prefer to talk about living area in increments of 100 sq. ft. Provide your client with the estimate (or estimates if it varies by neighborhood) as well as confidence intervals for any estimate(s) you provide. It turns out that Century 21’s leadership team has a member that has some statistical background. Therefore, make sure and provide evidence that the model assumptions are met and that any suspicious observations (outliers / influential observations) have been identified and addressed. Finally, of course, provide your client with a well written conclusion that quantifies the relationship between living area and sale price with respect to these three neighborhoods. 
+```{r}
+# Store the datset that has the neighborhood of Brkside, Edwards and NAmes for analysis 1
+analysis_filter=house_train%>%filter(Neighborhood=="BrkSide"|Neighborhood=="Edwards"|Neighborhood=="NAmes")
+unique(analysis_filter$Neighborhood)
+str(analysis_filter$Neighborhood)
+
+# Plot the relationship between the Living Area and SalePrice to see the linear relationship
+analysis_filter%>%ggplot(aes(x=GrLivArea,y=SalePrice))+geom_point()+geom_smooth(method="lm")+
+  ylab("Sale Price of House")+xlab("Living Area(in Sq.Ft) of House")+
+  ggtitle("Plot for Relationship between Living Area and Sale Price of House")
+
+# Correlation test between the Liiving Area and Sale Price 
+## There is enough evidence to suggest that there is correlation between the living area and sale price of house with p-value<0.0001 from correlation test. We are 95% confident that the correlation is between 0.51504 to 0.64731 with an estimate value of 0.58505
+cor.test(analysis_filter$GrLivArea,analysis_filter$SalePrice)
+
+# Plot the relationship using facetwrap() between the Living Area and SalePrice by Neighborhhod to see the linear relationship between each of neighborhood
+analysis_filter%>%ggplot(aes(x=GrLivArea,y=SalePrice,col=Neighborhood))+geom_point()+
+  geom_smooth(method="lm")+facet_wrap(~Neighborhood)+ylab("Sale Price of House")+xlab("Living Area(in Sq.Ft) of House")+
+ggtitle("Plot for   Relationship between Living Area and Sale Price of House for Edwards NAmes and BrkSide Neighborhood")
+
+# Plot the histogram of SalePrice and Living Area to check Normality
+## The Sale Price seems to have some skeweness so we will use log(SalePrice) in creating model
+plot_histogram(analysis_filter$SalePrice)
+## The Living Area seems to have some skeweness so we will use log(GrLivArea) in creating model
+plot_histogram(analysis_filter$GrLivArea)
+
+#Linear Regression Model Between Sale Price and Living Area
+## The Linear regression model has the Multiple-Rsqaure=0.4204 and adj-rsquare=0.4188 and rmse=0.2085
+analysis.model=lm(log(SalePrice)~log(GrLivArea),data=analysis_filter)
+summary(analysis.model)
+
+#Putting all plots in 3 rows and 3 columns
+par(mfrow=c(2,3))
+##Plot includes residuals and Standardized residuals vs fitted values, QQ plot
+plot(analysis.model, bg = 'blue', pch=23) 
+#$Plot cook's distance to detect outliers
+plot(cooks.distance(analysis.model), pch=23, bg='maroon', ylab="Cook's distance", 
+     main = "Cook's Distance")
+##Plot DFFITS to detect outliers
+plot(dffits(analysis.model), pch=23, bg='blue', ylab = 'DFFITS', main = 'DFFITS') 
+
+# Determine which row has outlier values
+analysis1.Outliers <- analysis_filter[which(cooks.distance(analysis.model) > .05),] #View values for rows with a high cook's distance. This shows rows that could be outliers.
+analysis1.Outliers
+
+#Removing outlier with id=131
+remove.outlier1=analysis_filter[-131,]
+dim(remove.outlier1)
+remove_model1=lm(SalePrice~GrLivArea,data=remove.outlier1)
+summary(remove_model1)#Multiple R-squared=0.3641 and Adj R-Squared=0.3624
+
+#Removing outlier with id=136
+remove.outlier2=analysis_filter[-136,]
+dim(remove.outlier2)
+remove_model2=lm(SalePrice~GrLivArea,data=remove.outlier2)
+summary(remove_model2)#Multiple R-squared=0.336 and Adj R-Squared=0.3342
+
+#Removing outlier with id=169
+remove.outlier3=analysis_filter[-169,]
+dim(remove.outlier3)
+remove_model3=lm(SalePrice~GrLivArea,data=remove.outlier3)
+summary(remove_model3)#Multiple R-squared=0.3278 and Adj R-Squared=0.326
+
+#Removing outlier with id=339
+remove.outlier4=analysis_filter[-339,]
+dim(remove.outlier4)
+remove_model4=lm(SalePrice~GrLivArea,data=remove.outlier4)
+summary(remove_model4)#Multiple R-squared=0.4138 and Adj R-Squared=0.4122
+
+
+# Removing outliers all together
+remove.outlier5=analysis_filter[-c(131,136,169,339),]
+dim(remove.outlier5)
+remove_model5=lm(SalePrice~GrLivArea,data=remove.outlier5)
+summary(remove_model5)#Multiple R-squared=0.4219 and Adj R-Squared=0.4204
+
+# Keeping id=169 becuase it explains the model and removing the id=131,136,339
+remove.outlier6=analysis_filter[-c(131,136,339),]
+dim(remove.outlier6)
+remove_model6=lm(SalePrice~GrLivArea,data=remove.outlier6)
+summary(remove_model6)#Multiple R-squared=0.4501 and Adj R-Squared=0.4487
+
+# Keeping id=169,136 becuase it explains the model and removing the id=131,339.
+remove.outlier7=analysis_filter[-c(131,339),]
+dim(remove.outlier7)
+remove_model7=lm(SalePrice~GrLivArea,data=remove.outlier7)
+summary(remove_model7)#Multiple R-squared=0.4573 and Adj R-Squared=0.4559
+
+# So Looking at all the models after removing the outliers one by one and results of it, we decided to keep it the model 7 
+# which has removed the outlier of id=131 and id=339 yielding highest Adj R-Squared=0.4559 among all the models.
+
+
+# Fitting the model after removing the influential outliers.
+
+# Full Model (Additive Model)
+fit.analysis1.fullmodel=lm(log(SalePrice)~log(GrLivArea)+relevel(as.factor(Neighborhood),ref="Edwards"),data=remove.outlier7)
+summary(fit.analysis1.fullmodel)#Multiple R-squared=0.5041 and Adj R-Squared=0.5002
+summary(fit.analysis1.fullmodel)$coefficients
+confint(fit.analysis1.fullmodel)
+press(fit.analysis1.fullmodel)
+
+# Reduced Model (Interactive or Multiplicative Model)
+fit.analysis1.reducedmodel=lm(log(SalePrice)~log(GrLivArea)*relevel(as.factor(Neighborhood),ref="Edwards"),data=remove.outlier7)
+summary(fit.analysis1.reducedmodel)#Multiple R-squared=0.5279 and Adj R-Squared=0.5216
+summary(fit.analysis1.reducedmodel)$coefficients
+confint(fit.analysis1.reducedmodel)
+press(fit.analysis1.reducedmodel)
+# It seems that the reduced model(interactive or multiplicative model) is working the best with Adj-Rsquared=0.5216)
+
+par(mfrow=c(3,3))
+##Plot includes residuals and Standardized residuals vs fitted values, QQ plot
+plot(fit.analysis1.reducedmodel, bg = 'blue', pch=23) 
+#$Plot cook's distance to detect outliers
+plot(cooks.distance(fit.analysis1.reducedmodel), pch=23, bg='maroon', ylab="Cook's distance", 
+     main = "Cook's Distance")
+##Plot DFFITS to detect outliers
+plot(dffits(fit.analysis1.reducedmodel), pch=23, bg='blue', ylab = 'DFFITS', main = 'DFFITS') 
+
+
+```
+
+# Analysis Question 2: Build the most predictive model for sales prices of homes in all of Ames Iowa.  This includes all neighborhoods. Your group is limited to only the techniques we have learned in 6371 (no random forests or other methods we have not yet covered).  Specifically, you should produce 4 models: one from forward selection, one from backwards elimination, one from stepwise selection, and one that you build custom.  The custom model could be one of the three preceding models or one that you build by adding or subtracting variables at your will.  Generate an adjusted R2, CV Press and Kaggle Score for each of these models and clearly describe which model you feel is the best in terms of being able to predict future sale prices of homes in Ames, Iowa.
+
+
+## Cleaning the Train Dataset
+```{r}
+dim(house_train)
+summary(house_train$SalePrice)
+
+# Check for the total number of columns that are character and numeric in type
+numeric_var_train=sum(sapply(house_train[,1:81],is.numeric))
+numeric_var_train
+char_var_train=sum(sapply(house_train[,1:81],is.character))
+char_var_train
+# Check for the names of  columns that are character and numeric in type
+numeric_varname_train=which(sapply(house_train[,1:81],is.numeric))
+numeric_varname_train
+char_varname_train=which(sapply(house_train[,1:81],is.character))
+char_varname_train
+
+# Represent the total NA values as TRUE and FALSE     
+table(is.na(house_train))
+
+# Represent the columns having total NA values  in table form
+missing_values_train <- colSums(sapply(house_train, is.na))
+missing_values_train<- data.frame(house_Variables_train = names(missing_values_train), house_NA_Count_train = missing_values_train); rownames(missing_values_train) <- c()
+missing_values_train<- missing_values_train %>% filter(house_NA_Count_train > 0)
+kable(missing_values_train, "html") %>%
+  kable_styling(full_width = F)
+length(missing_values_train$house_Variables_train)
+sum(missing_values_train$house_NA_Count_train)
+
+# Substitute the NA with None in character
+character_impute_train <- c("Alley", "MasVnrType","BsmtQual", "BsmtExposure", "BsmtFinType1", "BsmtFinType2", "FireplaceQu",  "GarageType", "GarageFinish", 
+                            "GarageQual", "GarageCond", "BsmtCond","PoolQC","Fence","MiscFeature","Electrical")
+house_train[,character_impute_train] <- apply(house_train[,character_impute_train], 2, 
+                                              function(x) {
+                                                replace(x, is.na(x), "None")
+                                              }
+)
+# Substitute the NA with 0 in numeric
+numeric_impute_train <- c("LotFrontage", "MasVnrArea","GarageYrBlt")
+house_train[,numeric_impute_train] <- apply(house_train[,numeric_impute_train], 2, 
+                                            function(x) {
+                                              replace(x, is.na(x),0)
+                                            }
+)
+
+summary(house_train$LotFrontage)[4]
+
+colnames(house_train)
+dim(house_train)
+summary(house_train[,])[4]
+
+# Unique values in each columns
+for(i in colnames(house_train)){
+  print(unique(house_train[,i]))
+}
+
+# Converting character to integer
+var_facs_train <- c("SaleCondition","SaleType","MiscFeature","Fence","PoolQC","PavedDrive","GarageCond","GarageQual","GarageFinish",
+                    "GarageType","FireplaceQu","Functional","KitchenQual","Electrical","CentralAir","HeatingQC","Heating","BsmtFinType2",
+                    "BsmtFinType1","BsmtExposure","BsmtCond","BsmtQual","Foundation","ExterCond","ExterQual","MasVnrArea","MasVnrType","Exterior2nd",
+                    "Exterior1st","RoofMatl","RoofStyle","HouseStyle","BldgType","Condition2","Condition1","Neighborhood","LandSlope","LotConfig","Utilities",
+                    "LandContour","LotShape","Alley","Street","MSZoning")
+
+house_train[,var_facs_train] <- lapply(house_train[,var_facs_train] , factor, ordered = FALSE)
+# Loop for converting character in integer
+for(i in colnames(house_train)){
+  house_train[,i]=as.integer(house_train[,i])
+  str(house_train[,i])
+}
+# Removing the GrLivArea and TotalBsmtSF because they are totally correlated with X1stFlrSF,X2ndFlrSF, LowQualFinSF and BsmtFinSF1, BsmtFinSF2 and BsmtUnfSF respectively.
+house_train=house_train%>%dplyr::select(-c(GrLivArea,TotalBsmtSF))
+dim(house_train)
+colnames(house_train)
+
+# Plot the graphs and perform EDA
+## we see some variables with some skewness so we will preceed with caution and try to do log transormation on those variables.
+plot_histogram(house_train[,2:79])
+
+# We don;t have any missing values now.
+table(is.na(house_train))
+
+
+
+
+
+```
+## Cleaning of Test Datset
+```{r}
+# Read the test dataset from GitHub
+house_test=read.csv("https://raw.githubusercontent.com/RashmiAPatel19/6371-Statistics-Project/main/test.csv",header=TRUE)
+head(house_test)
+dim(house_test)
+colnames(house_test)
+
+
+dim(house_test)
+
+# Check for the total number of columns that are character and numeric in type
+numeric_var_test=sum(sapply(house_test[,1:80],is.numeric))
+numeric_var_test
+char_var_test=sum(sapply(house_test[,1:80],is.character))
+char_var_test
+# Check for the names of  columns that are character and numeric in type
+numeric_varname_test=which(sapply(house_test[,1:80],is.numeric))
+numeric_varname_test
+char_varname_test=which(sapply(house_test[,1:80],is.character))
+char_varname_test
+
+# Represent the total NA values as TRUE and FALSE     
+table(is.na(house_test))
+
+# Represent the columns having total NA values  in table form
+missing_values_test <- colSums(sapply(house_test, is.na))
+missing_values_test<- data.frame(house_Variables_test = names(missing_values_test), house_NA_Count_test = missing_values_test); rownames(missing_values_test) <- c()
+missing_values_test<- missing_values_test %>% filter(house_NA_Count_test > 0)
+kable(missing_values_test, "html") %>%
+  kable_styling(full_width = F)
+length(missing_values_test$house_Variables)
+sum(missing_values_test$house_NA_Count)
+
+# Substitute the NA with None in character 
+character_impute_test <- c("MSZoning","Utilities","Alley", "MasVnrType","BsmtQual", "BsmtExposure", "BsmtFinType1", "BsmtFinType2", "FireplaceQu",  
+                           "GarageType", "GarageFinish", "Exterior1st","Exterior2nd","KitchenQual","Functional","SaleType",
+                           "GarageQual", "GarageCond", "BsmtCond","PoolQC","Fence","MiscFeature","Electrical")
+house_test[,character_impute_test] <- apply(house_test[,character_impute_test], 2, 
+                                            function(x) {
+                                              replace(x, is.na(x), "None")
+                                            }
+)
+# Substitute the NA with 0 in numeric
+
+numeric_impute_test <- c("LotFrontage", "MasVnrArea","GarageYrBlt","BsmtFinSF1","BsmtFinSF2","BsmtUnfSF","TotalBsmtSF","BsmtFullBath","BsmtHalfBath",
+                         "GarageCars","GarageArea")
+house_test[,numeric_impute_test] <- apply(house_test[,numeric_impute_test], 2, 
+                                          function(x) {
+                                            replace(x, is.na(x), 0)
+                                          }
+)
+colnames(house_test)
+dim(house_test)
+
+table(is.na(house_test))
+# Unique values in each columns
+for(i in colnames(house_test)){
+  print(unique(house_test[,i]))
+}
+
+# Converting character to integer
+var_facs_test <- c("SaleCondition","SaleType","MiscFeature","Fence","PoolQC","PavedDrive","GarageCond","GarageQual","GarageFinish",
+                   "GarageType","FireplaceQu","Functional","KitchenQual","Electrical","CentralAir","HeatingQC","Heating","BsmtFinType2",
+                   "BsmtFinType1","BsmtExposure","BsmtCond","BsmtQual","Foundation","ExterCond","ExterQual","MasVnrArea","MasVnrType","Exterior2nd",
+                   "Exterior1st","RoofMatl","RoofStyle","HouseStyle","BldgType","Condition2","Condition1","Neighborhood","LandSlope","LotConfig","Utilities",
+                   "LandContour","LotShape","Alley","Street","MSZoning")
+
+house_test[,var_facs_test] <- lapply(house_test[,var_facs_test] , factor, ordered = FALSE)
+
+# Loop for converting character in integer
+for(i in colnames(house_test)){
+  house_test[,i]=as.integer(house_test[,i])
+  str(house_test[,i])
+}
+# Again checking for missing values for confirmation
+table(is.na(house_test))
+
+# Removing the GrLivArea and TotalBsmtSF because they are totally correlated with X1stFlrSF,X2ndFlrSF, LowQualFinSF and BsmtFinSF1, BsmtFinSF2 and BsmtUnfSF respectively.
+house_test=house_test%>%dplyr::select(-c(GrLivArea,TotalBsmtSF))
+dim(house_test)
+# Plot the graphs and perform EDA
+## we see some variables with some skewness so we will preceed with caution and try to do log transormation on those variables.
+plot_histogram(house_test[,2:78])
+
+
+```
+## Combining the train and test dataset by includeing one more column name of isTrainSet which has TrUe or False value
+```{r}
+# Create the isTrainSet Column =True in train set
+house_train$isTrainSet=TRUE
+
+# Create the isTrainSet Column =False in test set
+house_test$isTrainSet=FALSE
+dim(house_train)
+dim(house_test)
+
+# Create a SalePrice Column with NA in test set
+house_test$SalePrice=rep(NA,1459)
+
+# Combining the train and test set
+house_full=rbind(house_train,house_test)
+dim(house_full)
+
+train=house_full[house_full$isTrainSet==TRUE,]
+test=house_full[house_full$isTrainSet==FALSE,]
+dim(train)
+dim(test)
+table(is.na(test))
+
+```
+## Creating the Partition in Train data set
+```{r}
+train.model=createDataPartition(y=train$SalePrice, p = 0.8, list = FALSE)
+train.data  <- train[train.model, ]
+test.data <- train[-train.model, ]
+dim(train.data)
+dim(test.data)
+str(test.data)
+```
+
+## Checking for the Normality Collinearity and Outliers
+```{r}
+# Checking for normality
+## There is some evidence of skewness in some variable. We will do log transformation to handle this skewness.
+plot_histogram(train)
+
+# Creating the model using all the variables
+all.model=lm(log(SalePrice)~.-isTrainSet,data=train)
+summary(all.model)# #Multiple R-squared=0.8874 and Adj R-Squared=0.8810
+
+# Checking for Co-Linearity
+par(mfrow=c(2,3))
+#Plot includes residuals and Standardized residuals vs fitted values, QQ plot
+plot(all.model, bg = 'blue', pch=23) 
+#Plot cook's distance to detect outliers
+plot(cooks.distance(all.model), pch=23, bg='maroon', ylab="Cook's distance", 
+     main = "Cook's Distance")
+#Plot DFFITS to detect outliers
+plot(dffits(all.model), pch=23, bg='blue', ylab = 'DFFITS', main = 'DFFITS') 
+
+# Determine which row has outlier values
+analysis1.Outliers <- train[which(cooks.distance(all.model) > .05),] #View values for rows with a high cook's distance. This shows rows that could be outliers.
+analysis1.Outliers# id=524,813,1183,1299,1424 are outliers
+
+remove.outlier1=train[-1424,]
+dim(remove.outlier1)
+remove_model1=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier1)
+summary(remove_model1)#Multiple R-squared=0.8907 and Adj R-Squared=0.8845
+
+remove.outlier2=train[-1299,]
+dim(remove.outlier2)
+remove_model2=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier2)
+summary(remove_model2)#Multiple R-squared=0.9077 and Adj R-Squared=0.9025
+
+remove.outlier3=train[-1183,]
+dim(remove.outlier3)
+remove_model3=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier3)
+summary(remove_model3)#Multiple R-squared=0.8868 and Adj R-Squared=0.8805
+
+remove.outlier4=train[-813,]
+dim(remove.outlier4)
+remove_model4=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier4)
+summary(remove_model4)#Multiple R-squared=0.8878 and Adj R-Squared=0.8815
+
+remove.outlier5=train[-524,]
+dim(remove.outlier5)
+remove_model5=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier5)
+summary(remove_model5)#Multiple R-squared=0.8958 and Adj R-Squared=0.8899
+
+remove.outlier6=train[-c(1424,524),]
+dim(remove.outlier6)
+remove_model6=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier6)
+summary(remove_model6)#Multiple R-squared=0.8993 and Adj R-Squared=0.8936
+
+remove.outlier7=train[-c(1299,524),]
+dim(remove.outlier7)
+remove_model7=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier7)
+summary(remove_model7)#Multiple R-squared=0.9201 and Adj R-Squared=0.9156
+
+remove.outlier8=train[-c(1299,524,1424),]
+dim(remove.outlier8)
+remove_model8=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier8)
+summary(remove_model8)#Multiple R-squared=0.9201 and Adj R-Squared=0.9156
+dim(remove.outlier8)
+
+remove.outlier9=train[-c(1299,524,1424,813),]
+dim(remove.outlier9)
+remove_model9=lm(log(SalePrice)~.-isTrainSet,data=remove.outlier9)
+summary(remove_model9)#Multiple R-squared=0.9205 and Adj R-Squared=0.916 and RMSE=0.1155
+
+par(mfrow=c(2,3))
+#Plot includes residuals and Standardized residuals vs fitted values, QQ plot
+plot(remove_model9, bg = 'blue', pch=23) 
+#Plot cook's distance to detect outliers
+plot(cooks.distance(remove_model9), pch=23, bg='maroon', ylab="Cook's distance", 
+     main = "Cook's Distance")
+#Plot DFFITS to detect outliers
+plot(dffits(remove_model9), pch=23, bg='blue', ylab = 'DFFITS', main = 'DFFITS') 
+
+```
+
+## Selecting the model 9 in which id=542,812,1299,1424 is removed which is performing best with lowest rmse and highest adj-Rsquared
+```{r}
+fit.analysis2=remove.outlier9
+fit.analysis2.model=remove_model9
+dim(fit.analysis2)
+table(is.na(fit.analysis2))
+summary(fit.analysis2.model)
+
+
+```
+
+## Creating the model using forward variable selection 
+
+Multiple R-Squared=0.9179
+Adjusted R-Squared=0.9155
+Kaggle RMSE=0.13985
+CV Press=20.53273
+```{r}
+# Applying forward variable selection method
+ols_step_forward_aic(model = fit.analysis2.model,details = TRUE)
+# Generating the model with the variables generated by forward variable selection method
+forward.model=lm(log(SalePrice)~Condition2+Alley+LandContour+GarageArea+FullBath+HalfBath+FireplaceQu+
+           EnclosedPorch+MiscFeature+LotShape+Foundation+GarageCond+LowQualFinSF+ExterQual+YrSold
+         +WoodDeckSF+MasVnrType+PavedDrive+YearRemodAdd+ExterCond+MSZoning+BsmtQual+BsmtFinSF2+BsmtUnfSF+
+           Fireplaces+Street+BsmtFullBath+BldgType+ScreenPorch+KitchenQual+CentralAir+
+           Functional+KitchenAbvGr+LotArea+SaleCondition+GarageCars+BsmtFinSF1+OverallCond+OverallQual+YearBuilt+X2ndFlrSF
+         +X1stFlrSF,data=fit.analysis2)
+summary(forward.model)
+# Calculating the CV Press of the forward linear regression model
+ols_press(forward.model)
+
+
+#Doing the prediction on partitioned test set
+prediction=predict(forward.model,newdata=test.data)
+prediction
+
+#Performing inverse log transform
+value=2.718^prediction
+value
+
+# Checking the RMSE of the model
+rmse.model=rmse(test.data$SalePrice,value)
+rmse.model
+
+# Comparing the model predicted values with observed values
+table=data.frame(Id=test.data$Id,ObsSalePrice=test.data$SalePrice,PredSalePrice=value)
+table
+
+# Predictions on the Original Test Set
+predictiontest=predict(forward.model,newdata=test)
+predictiontest
+
+#Performing inverse log transform
+pred_value=2.718^predictiontest
+pred_value
+
+# Putting the predicted values in a dataframe 
+output.df=data.frame(Id=test$Id, SalePrice=pred_value)
+head(output.df)
+dim(output.df)
+table(is.na(output.df))
+
+# Putting the dataframe in a csv to submit on the kaggle to check the Score
+write.csv(output.df,file="C:/Users/ARTH PATEL/Desktop/MSDS@SMU/6371-LSA/Stats Project/kaggle_submission_forward.csv",row.names = FALSE)
+
+
+
+```
+## Creating the model using backward variable selection 
+
+Multiple R-Squared=0.9188
+Adjusted R-Squared=0.9162
+Kaggle RMSE=0.13700
+CV Press=19.45764
+
+```{r}
+# Applying backward variable selection method
+backward.var=stepAIC(fit.analysis2.model,direction = "backward")
+backward.var$anova
+
+# Generating the model with the variables generated by backward variable selection method
+back.model=lm(log(SalePrice) ~ MSZoning + log(LotArea) + Street + Alley + LotShape + 
+                LandContour + Condition2 + BldgType + OverallQual + OverallCond + 
+                YearBuilt + YearRemodAdd + Exterior1st + Exterior2nd + MasVnrType + 
+                ExterQual + ExterCond + Foundation + BsmtQual + BsmtExposure + 
+                log(BsmtFinSF1) + log(BsmtFinSF2) + log(BsmtUnfSF) + HeatingQC + CentralAir + 
+                X1stFlrSF + X2ndFlrSF + LowQualFinSF + BsmtFullBath + FullBath + 
+                HalfBath + KitchenAbvGr + KitchenQual + Functional + log(Fireplaces) + 
+                FireplaceQu + GarageCars + GarageArea + GarageCond + PavedDrive + 
+                log(WoodDeckSF) + log(EnclosedPorch) + ScreenPorch + MiscFeature + 
+                YrSold + SaleCondition,data=fit.analysis2)
+summary(back.model)
+
+# Calculating the CV Press of the backward linear regression model
+ols_press(backward.model)
+
+#Doing the prediction on partitioned test set
+prediction=predict(back.model,newdata=test.data)
+prediction
+
+#Performing inverse log transform
+value=2.718^prediction
+value
+
+# Checking the RMSE of the model
+rmse.model=rmse(test.data$SalePrice,value)
+rmse.model
+
+# Comparing the model predicted values with observed values
+table=data.frame(Id=test.data$Id,ObsSalePrice=test.data$SalePrice,PredSalePrice=value)
+table
+
+# Predictions on the Original Test Set
+predictiontest=predict(back.model,newdata=test)
+predictiontest
+
+#Performing inverse log transform
+pred_value=2.718^predictiontest
+pred_value
+
+# Putting the predicted values in a dataframe 
+output.df=data.frame(Id=test$Id, SalePrice=pred_value)
+head(output.df)
+dim(output.df)
+table(is.na(output.df))
+
+# Putting the dataframe in a csv to submit on the kaggle to check the Score
+write.csv(output.df,file="C:/Users/ARTH PATEL/Desktop/MSDS@SMU/6371-LSA/Stats Project/kaggle_submission_backward.csv",row.names = FALSE)
+```
+
+## Creating the model using stepwise variable selection 
+
+Multiple R-Squared=0.9188
+Adjusted R-Squared=0.9162
+Kaggle RMSE=0.13926
+CV Press=19.0847
+
+```{r}
+# Applying stepwise variable selection method
+stepwise.var=stepAIC(fit.analysis2.model,direction = "both")
+stepwise.var$anova
+
+# Generating the model with the variables generated by stepwise variable selection method
+step.model=lm(log(SalePrice) ~ MSZoning + log(LotArea) + Street + Alley + LotShape + 
+                LandContour + Condition2 + BldgType + OverallQual + OverallCond + 
+                YearBuilt + YearRemodAdd + Exterior1st + Exterior2nd + MasVnrType + 
+                ExterQual + ExterCond + Foundation + BsmtQual + BsmtExposure + 
+                log(BsmtFinSF1) + log(BsmtFinSF2) + log(BsmtUnfSF) + HeatingQC + CentralAir + 
+                X1stFlrSF + X2ndFlrSF + LowQualFinSF + BsmtFullBath + FullBath + 
+                HalfBath + KitchenAbvGr + KitchenQual + Functional + log(Fireplaces) + 
+                FireplaceQu + GarageCars + GarageArea + GarageCond + PavedDrive + 
+                log(WoodDeckSF) + log(EnclosedPorch) + ScreenPorch + MiscFeature + 
+                YrSold + SaleCondition,data=fit.analysis2)
+summary(step.model)
+
+# Calculating the CV Press of the backward linear regression model
+ols_press(stepwise.model)
+
+#Doing the prediction on partitioned test set
+prediction=predict(step.model,newdata=test.data)
+prediction
+
+#Performing inverse log transform
+value=2.718^prediction
+value
+
+# Checking the RMSE of the model
+rmse.model=rmse(test.data$SalePrice,value)
+rmse.model
+
+# Comparing the model predicted values with observed values
+table=data.frame(Id=test.data$Id,ObsSalePrice=test.data$SalePrice,PredSalePrice=value)
+table
+
+# Predictions on the Original Test Set
+predictiontest=predict(step.model,newdata=test)
+predictiontest
+
+#Performing inverse log transform
+pred_value=2.718^predictiontest
+pred_value
+
+# Putting the predicted values in a dataframe 
+output.df=data.frame(Id=test$Id, SalePrice=pred_value)
+head(output.df)
+dim(output.df)
+table(is.na(output.df))
+
+# Putting the dataframe in a csv to submit on the kaggle to check the Score
+write.csv(output.df,file="C:/Users/ARTH PATEL/Desktop/MSDS@SMU/6371-LSA/Stats Project/kaggle_submission_stepwise.csv",row.names = FALSE)
+
+
+```
+## Creating the model using custom variable selection 
+
+Multiple R-Squared=0.8596
+Adjusted R-Squared=0.8568
+Kaggle RMSE=0.13926
+CV Press=34.379
+
+```{r}
+# Generating the  custom model
+custom.model1=lm(log(SalePrice) ~ Neighborhood+GarageCars+SaleCondition+RoofStyle+CentralAir+Fireplaces+
+                X1stFlrSF*X2ndFlrSF+ScreenPorch+BsmtFinSF1*BsmtFinSF2+KitchenQual+BsmtFullBath*BsmtHalfBath+
+                  YearBuilt+PoolQC+HouseStyle+LotArea+BsmtFinType2*BsmtFinType1+BsmtFinType1+Electrical+
+                  Electrical*CentralAir+GarageFinish+GarageYrBlt+GarageType,data=fit.analysis2)
+summary(custom.model1)
+
+# Calculating the CV Press of the custom linear regression model
+ols_press(custom.model1)
+
+
+#Doing the prediction on partitioned test set
+prediction=predict(custom.model,newdata=test.data)
+prediction
+
+#Performing inverse log transform
+value=2.718^prediction
+value
+
+# Checking the RMSE of the model
+rmse.model=rmse(test.data$SalePrice,value)
+rmse.model
+
+# Comparing the model predicted values with observed values
+table=data.frame(Id=test.data$Id,ObsSalePrice=test.data$SalePrice,PredSalePrice=value)
+table
+
+# Predictions on the Original Test Set
+predictiontest=predict(custom.model,newdata=test)
+predictiontest
+
+#Performing inverse log transform
+pred_value=2.718^predictiontest
+pred_value
+
+# Putting the predicted values in a dataframe 
+output.df=data.frame(Id=test$Id, SalePrice=pred_value)
+head(output.df)
+dim(output.df)
+table(is.na(output.df))
+
+# Putting the dataframe in a csv to submit on the kaggle to check the Score
+write.csv(output.df,file="C:/Users/ARTH PATEL/Desktop/MSDS@SMU/6371-LSA/Stats Project/kaggle_submission_custom.csv",row.names = FALSE)
+
+```
